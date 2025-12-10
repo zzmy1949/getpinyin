@@ -1,52 +1,35 @@
-# This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
-
-name: Node.js CI
+name: Publish Package
 
 on:
   push:
+    paths: # 当路径文件变化时
+      - 'src/**' # source 文件夹变化时
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
 
 jobs:
-  build:
-
+  publish:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        node-version: [16.x]
-
+        node-version: [20.x]
     steps:
-    - name: Chekout # step1 获取源码
-      uses: actions/checkout@main # 使用 actions/checkout@v2
-      with:
-          persist-credentials: false
+      - uses: actions/checkout@v4
 
-    - name: Cache node modules # step2
-      uses: actions/cache@main # 使用 actions/cache@v1
-      id: cache
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: 'https://registry.npmjs.org'
 
-    - name: Install Dependencies # step3 name
-      if: steps.cache.outputs.cache-hit != 'true' # 如果变量 cache-hit 不等于 true
-      run: npm install # 安装 node modules 相关依赖
-
-    - name: Build
-      run: npm run build
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@main
-      with:
-        node-version: ${{ matrix.node-version }}
-        registry-url: https://registry.npmjs.org
-
-    - name: Publish
-      run: npm publish .
-      env:
-        NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      # Ensure npm 11.5.1 or later is installed
+      - name: Update npm
+        run: |
+          npm install -g npm@latest
+          npm ci
+          npm version patch
+          npm run build --if-present
+          cd ./dist
+          npm publish .
